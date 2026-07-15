@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'evenements',
     'commandes',
     'missions',
+    'preuves',
 ]
 
 MIDDLEWARE = [
