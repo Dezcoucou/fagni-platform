@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'dossiers',
     'evenements',
     'commandes',
+    'missions',
 ]
 
 MIDDLEWARE = [
