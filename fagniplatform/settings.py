@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'missions',
     'preuves',
     'reclamations',
+    'paiements',
 ]
 
 MIDDLEWARE = [
