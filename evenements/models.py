@@ -52,6 +52,8 @@ class Evenement(models.Model):
         ("livraison_effectuee", "Livraison effectuee"),
         ("avis_recu", "Avis recu"),
         ("cloture", "Cloture"),
+        ("reclamation_ouverte", "Reclamation ouverte"),
+        ("reclamation_resolue", "Reclamation resolue"),
         ("autre", "Autre (specifique a un workflow)"),
     ]
 

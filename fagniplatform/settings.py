@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'commandes',
     'missions',
     'preuves',
+    'reclamations',
 ]
 
 MIDDLEWARE = [
