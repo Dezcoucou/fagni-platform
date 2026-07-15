@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'decisions',
     'configuration',
     'accounts',
+    'analytics',
 ]
 
 MIDDLEWARE = [
