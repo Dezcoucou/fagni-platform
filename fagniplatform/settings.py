@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'capacites',
     'workflows',
     'decisions',
+    'configuration',
 ]
 
 MIDDLEWARE = [
