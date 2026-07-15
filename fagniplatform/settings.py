@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'workflows',
     'decisions',
     'configuration',
+    'accounts',
 ]
 
 MIDDLEWARE = [
