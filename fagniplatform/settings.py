@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'reclamations',
     'paiements',
     'capacites',
+    'workflows',
 ]
 
 MIDDLEWARE = [
