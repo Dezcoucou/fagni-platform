@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'ajustements',
     'devis',
     'parrainage',
+    'orchestrateur',
 ]
 
 MIDDLEWARE = [
