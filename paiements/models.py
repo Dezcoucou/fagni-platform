@@ -21,8 +21,8 @@ class Wallet(models.Model):
     solde = models.DecimalField("Solde (FCFA)", max_digits=10, decimal_places=2, default=0)
 
     class Meta:
-        verbose_name = "Wallet"
-        verbose_name_plural = "Wallets"
+        verbose_name = "Portefeuille"
+        verbose_name_plural = "Portefeuilles"
 
     def __str__(self):
         return f"Wallet de {self.dossier.nom} - {self.solde} FCFA"
@@ -52,8 +52,8 @@ class TransactionWallet(models.Model):
     created_at = models.DateTimeField("Effectuee le", auto_now_add=True)
 
     class Meta:
-        verbose_name = "Transaction Wallet"
-        verbose_name_plural = "Transactions Wallet"
+        verbose_name = "Transaction de portefeuille"
+        verbose_name_plural = "Transactions de portefeuille"
         ordering = ["-created_at"]
 
     def __str__(self):
