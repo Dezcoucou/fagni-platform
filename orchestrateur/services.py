@@ -15,6 +15,7 @@ from configuration.services import obtenir_valeur_courante, ParametreInconnu
 from missions.services import proposer_mission
 from evenements.models import Evenement
 from notifications.services import envoyer_notification
+from workflows.models import Workflow
 
 
 def capacites_activees():
@@ -79,3 +80,12 @@ def orchestrer_mission(type_mission, commande, service, acteur_assigne=None, lig
     )
 
     return mission
+
+def selectionner_workflow(service):
+    """
+    Retourne le Workflow configure pour ce service (FOS-210 section 12).
+    Retourne None si aucun workflow n'a encore ete configure pour ce
+    service - jamais une erreur bloquante, un simple signal que ce
+    service suit encore le comportement par defaut, non formalise.
+    """
+    return Workflow.objects.filter(service_associe=service).first()

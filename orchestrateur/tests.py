@@ -11,7 +11,8 @@ from missions.models import Mission
 from capacites.services import declarer_capacite
 from configuration.services import definir_parametre
 from notifications.models import Notification
-from .services import capacites_activees, suggerer_partenaires, orchestrer_mission
+from workflows.services import creer_workflow
+from .services import capacites_activees, suggerer_partenaires, orchestrer_mission, selectionner_workflow
 
 
 class CapacitesActiveesTests(TestCase):
@@ -93,3 +94,28 @@ class OrchestrationMissionTests(TestCase):
 
         with self.assertRaises(ValueError):
             orchestrer_mission("collecte", self.commande, "service_inexistant")
+
+class SelectionWorkflowTests(TestCase):
+    """Relie enfin orchestrateur au module workflows (Sprint 9), reste isole depuis sa creation."""
+
+    def test_aucun_workflow_configure_retourne_none(self):
+        """Un service sans workflow configure ne doit jamais lever d'erreur - juste None."""
+        resultat = selectionner_workflow("service_jamais_configure")
+        self.assertIsNone(resultat)
+
+    def test_selection_workflow_pressing(self):
+        creer_workflow(
+            "pressing_standard_test", "lavage",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "cloture"}],
+        )
+        workflow = selectionner_workflow("lavage")
+        self.assertEqual(workflow.nom, "pressing_standard_test")
+
+    def test_selection_workflow_cordonnerie(self):
+        creer_workflow(
+            "cordonnerie_test", "cordonnerie",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "autre"}, {"type_evenement": "cloture"}],
+        )
+        workflow = selectionner_workflow("cordonnerie")
+        self.assertEqual(workflow.nom, "cordonnerie_test")
+        self.assertEqual(workflow.etapes.count(), 3)
