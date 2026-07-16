@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'notifications',
     'pricing',
     'ajustements',
+    'devis',
 ]
 
 MIDDLEWARE = [
