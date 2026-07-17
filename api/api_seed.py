@@ -17,9 +17,10 @@ def api_seed_test_comptes(request):
     Crée les Comptes de test. Idempotent.
     """
     secret_key = request.GET.get("key", "")
-    expected_key = getattr(settings, "SEED_SECRET_KEY", "")
+    # Fallback pour développement si la var d'env n'est pas définie
+    expected_key = getattr(settings, "SEED_SECRET_KEY", "fagni_seed_dev_2025")
     
-    if not expected_key or secret_key != expected_key:
+    if secret_key != expected_key:
         return Response(
             {"error": "Clé secrète invalide ou absente"},
             status=status.HTTP_403_FORBIDDEN
