@@ -16,8 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from api.api_auth import api_auth_login, api_auth_refresh, api_auth_logout
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/auth/login', api_auth_login, name='auth_login'),
+    path('api/auth/refresh', api_auth_refresh, name='auth_refresh'),
+    path('api/auth/logout', api_auth_logout, name='auth_logout'),
     path('api/', include('dossiers.urls')),
 ]

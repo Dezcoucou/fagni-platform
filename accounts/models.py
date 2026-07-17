@@ -8,6 +8,7 @@ confondent jamais - desactiver un Compte n'efface jamais l'historique
 de son Dossier.
 """
 from django.db import models
+from django.contrib.auth.hashers import make_password, check_password
 from dossiers.models import Dossier
 
 
@@ -60,7 +61,20 @@ class Compte(models.Model):
         "Role", max_length=20, choices=ROLE_CHOICES, default="membre",
     )
     actif = models.BooleanField("Compte actif", default=True)
+    mot_de_passe_hash = models.CharField(
+        "Mot de passe (hache)", max_length=255, blank=True, default="",
+        help_text="Jamais stocke en clair - toujours via definir_mot_de_passe()",
+    )
     created_at = models.DateTimeField("Cree le", auto_now_add=True)
+
+    def definir_mot_de_passe(self, raw_password):
+        """Hache et stocke le password."""
+        self.mot_de_passe_hash = make_password(raw_password)
+        self.save()
+    
+    def verifier_mot_de_passe(self, raw_password):
+        """Vérifie un password en clair contre le hash stocké."""
+        return check_password(raw_password, self.mot_de_passe_hash)
 
     class Meta:
         verbose_name = "Compte"
