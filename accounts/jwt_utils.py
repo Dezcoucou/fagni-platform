@@ -93,3 +93,43 @@ def require_auth(token_type="access"):
                 )
         return wrapper
     return decorator
+
+
+def require_role(*allowed_roles):
+    """
+    Decorator pour vérifier le rôle de l'utilisateur.
+    Usage: @require_role("administrateur", "superviseur")
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            # D'abord vérifier l'auth via require_auth
+            auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+            if not auth_header.startswith("Bearer "):
+                return Response(
+                    {"error": "Authorization header manquant"},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            
+            token = auth_header[7:]
+            try:
+                payload = JWTHandler.decode_token(token, token_type="access")
+                request.compte_id = payload.get("compte_id")
+                request.email = payload.get("email")
+                request.role = payload.get("role")
+                
+                # Vérifier le rôle
+                if request.role not in allowed_roles:
+                    return Response(
+                        {"error": f"Accès refusé. Rôle requis: {', '.join(allowed_roles)}"},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                
+                return view_func(request, *args, **kwargs)
+            except jwt.InvalidTokenError as e:
+                return Response(
+                    {"error": str(e)},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+        return wrapper
+    return decorator
