@@ -19,6 +19,7 @@ from django.urls import path, include
 from api.api_auth import api_auth_login, api_auth_refresh, api_auth_logout
 from api.api_seed import api_seed_test_comptes
 from api.api_compte import api_compte_me
+from api.api_driver import api_driver_missions
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,5 +28,6 @@ urlpatterns = [
     path('api/auth/logout', api_auth_logout, name='auth_logout'),
     path('api/admin/seed', api_seed_test_comptes, name='admin_seed'),
     path('api/compte/me', api_compte_me, name='compte_me'),
+    path('api/driver/missions', api_driver_missions, name='driver_missions'),
     path('api/', include('dossiers.urls')),
 ]
