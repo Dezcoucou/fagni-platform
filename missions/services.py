@@ -16,11 +16,16 @@ class ActeurNonUtilisable(Exception):
 
 
 @transaction.atomic
-def proposer_mission(type_mission, commande, acteur_assigne, ligne_commande=None):
+def proposer_mission(type_mission, commande, acteur_assigne, ligne_commande=None, workflow=None):
     """
     Propose une Mission a un acteur d'execution. Refuse explicitement si
     l'acteur n'est pas utilisable (BOS chapitre 7.2 - un Dossier suspendu
     ou exclu ne peut jamais recevoir de nouvelle Mission).
+
+    workflow : optionnel, deja resolu par l'appelant (orchestrateur) -
+    fourni des la creation pour que le signal de notification (Sprint 19
+    suite) puisse le voir des le tout premier evenement mission_creee,
+    jamais assigne apres coup.
     """
     if not acteur_assigne.est_utilisable():
         raise ActeurNonUtilisable(
@@ -34,6 +39,7 @@ def proposer_mission(type_mission, commande, acteur_assigne, ligne_commande=None
         commande=commande,
         ligne_commande=ligne_commande,
         acteur_assigne=acteur_assigne,
+        workflow=workflow,
     )
 
     emettre_evenement(

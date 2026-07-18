@@ -64,12 +64,8 @@ def orchestrer_mission(type_mission, commande, service, acteur_assigne=None, lig
             raise ValueError(f"Aucun partenaire disponible pour le service '{service}'.")
         acteur_assigne = suggestions[0]
 
-    mission = proposer_mission(type_mission, commande, acteur_assigne, ligne_commande)
-
     workflow = selectionner_workflow(service)
-    if workflow is not None:
-        mission.workflow = workflow
-        mission.save(update_fields=["workflow"])
+    mission = proposer_mission(type_mission, commande, acteur_assigne, ligne_commande, workflow=workflow)
 
     content_type = ContentType.objects.get_for_model(mission)
     evenement = Evenement.objects.filter(

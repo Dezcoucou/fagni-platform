@@ -174,3 +174,48 @@ class EtatExecutionTests(TestCase):
         etat = etat_execution(mission)
         self.assertTrue(etat["termine"])
         self.assertIsNone(etat["prochaine_etape"])
+
+
+class NotificationEtapeFranchieTests(TestCase):
+    """
+    Verifie le signal post_save sur Evenement (orchestrateur/signals.py) :
+    notification automatique quand une etape de workflow tracee est
+    franchie - jamais de creation automatique de la mission suivante
+    (decision de gouvernance, option 2 retenue plutot que l'option 1).
+    """
+
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963518")
+        self.livreur = ouvrir_dossier("livreur", "Youande", "0799404892")
+        self.ops = ouvrir_dossier("ops", "Amadou", "0700000300")
+        self.commande = creer_commande(
+            self.client_dossier,
+            [{"article": "Chemise", "service": "lavage_signal_test", "quantite": 1, "prix_unitaire": 500}],
+        )
+        creer_workflow(
+            "pressing_signal_test", "lavage_signal_test",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "mission_creee"}, {"type_evenement": "cloture"}],
+        )
+
+    def test_notifie_acteur_assigne_et_ops_a_la_creation_mission(self):
+        """
+        mission_creee est deja une etape de la sequence - orchestrer_mission
+        emet cet evenement, le signal doit notifier le livreur ET l'OPS
+        en plus des notifications deja envoyees par orchestrer_mission lui-meme.
+        """
+        nb_avant = Notification.objects.count()
+        mission = orchestrer_mission("collecte", self.commande, "lavage_signal_test", acteur_assigne=self.livreur)
+        nb_apres = Notification.objects.count()
+
+        # orchestrer_mission notifie deja acteur + client (2) ; le signal ajoute livreur + ops (2 de plus)
+        self.assertGreaterEqual(nb_apres, nb_avant + 3)
+        self.assertTrue(
+            Notification.objects.filter(dossier_destinataire=self.ops, evenement_declencheur__type_evenement="mission_creee").exists()
+        )
+
+    def test_aucune_notification_signal_si_pas_de_workflow_trace(self):
+        """Sans workflow trace sur la mission, le signal ne doit rien declencher de supplementaire."""
+        mission = orchestrer_mission("collecte", self.commande, "service_sans_workflow_signal", acteur_assigne=self.livreur)
+        self.assertFalse(
+            Notification.objects.filter(dossier_destinataire=self.ops).exists()
+        )
