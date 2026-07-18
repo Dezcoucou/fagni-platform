@@ -9,7 +9,7 @@ from rest_framework import status
 from accounts.jwt_utils import require_role
 from dossiers.models import Dossier
 from abonnements.models import Abonnement
-from abonnements.services import creer_abonnement, DossierNonUtilisable
+from abonnements.services import creer_abonnement, generer_commande_depuis_abonnement, DossierNonUtilisable, PrixAbonnementNonConfigure
 
 
 @api_view(['GET', 'POST'])
@@ -102,3 +102,33 @@ def _liste_abonnements(request):
             for a in abonnements
         ],
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@require_role("administrateur", "superviseur")
+def api_ops_generer_commande_abonnement(request, abonnement_id):
+    """
+    POST /api/ops/abonnements/<abonnement_id>/generer-commande
+    Genere manuellement la Commande de l'echeance courante pour cet
+    abonnement - appel manuel volontaire (OPS), jamais automatique par
+    tache planifiee a ce stade (decision de gouvernance separee, meme
+    principe que capacites_activees).
+    """
+    try:
+        abonnement = Abonnement.objects.select_related("dossier_client").get(id=abonnement_id)
+    except Abonnement.DoesNotExist:
+        return Response({"error": "Abonnement introuvable."}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        commande = generer_commande_depuis_abonnement(abonnement)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except PrixAbonnementNonConfigure as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        "commande_id": commande.id,
+        "client": abonnement.dossier_client.nom,
+        "prix": float(commande.prix_engage),
+        "delai_annonce": commande.delai_annonce,
+    }, status=status.HTTP_201_CREATED)

@@ -6,6 +6,8 @@ jusqu'ici jamais testes directement, seulement les services sous-jacents.
 from django.test import TestCase
 from django.urls import reverse
 from accounts.jwt_utils import JWTHandler
+from configuration.services import definir_parametre
+from abonnements.services import creer_abonnement
 from dossiers.services import ouvrir_dossier
 from commandes.services import creer_commande
 from orchestrateur.services import orchestrer_mission
@@ -238,3 +240,38 @@ class ApiOpsAbonnementsTests(TestCase):
         data = response.json()
         self.assertEqual(data["total"], 1)
         self.assertEqual(data["actifs"], 1)
+
+
+class ApiOpsGenererCommandeAbonnementTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963523")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+        self.abonnement = creer_abonnement(
+            self.client_dossier, "confort", "M", jour_collecte=0, jour_livraison=3,
+        )
+        self.token_ops = JWTHandler.encode_access_token(compte_id=12, email="ops3@fagni.test", role="administrateur")
+
+    def _url(self, abonnement_id):
+        return f"/api/ops/abonnements/{abonnement_id}/generer-commande"
+
+    def test_generation_reussie(self):
+        response = self.client.post(self._url(self.abonnement.id), HTTP_AUTHORIZATION=f"Bearer {self.token_ops}")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["prix"], 10900.0)
+
+    def test_abonnement_introuvable(self):
+        response = self.client.post(self._url(999999), HTTP_AUTHORIZATION=f"Bearer {self.token_ops}")
+        self.assertEqual(response.status_code, 404)
+
+    def test_refuse_si_abonnement_suspendu(self):
+        self.abonnement.statut = "suspendu"
+        self.abonnement.save(update_fields=["statut"])
+        response = self.client.post(self._url(self.abonnement.id), HTTP_AUTHORIZATION=f"Bearer {self.token_ops}")
+        self.assertEqual(response.status_code, 400)
+
+    def test_refuse_si_prix_non_configure(self):
+        abonnement_essentiel = creer_abonnement(
+            self.client_dossier, "essentiel", "S", jour_collecte=1, jour_livraison=4,
+        )
+        response = self.client.post(self._url(abonnement_essentiel.id), HTTP_AUTHORIZATION=f"Bearer {self.token_ops}")
+        self.assertEqual(response.status_code, 400)

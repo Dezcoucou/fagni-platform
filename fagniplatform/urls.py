@@ -24,7 +24,7 @@ from api.api_partner import api_partner_orders, api_partner_mission_workflow
 from api.api_ops import api_ops_dashboard
 from api.api_client import api_client_orders, api_client_order_workflow
 from api.api_workflow import api_mission_workflow
-from api.api_abonnements import api_ops_abonnements
+from api.api_abonnements import api_ops_abonnements, api_ops_generer_commande_abonnement
 from api.api_admin_compte import api_admin_creer_compte_ops
 
 urlpatterns = [
@@ -44,5 +44,6 @@ urlpatterns = [
     path('api/client/orders/<int:commande_id>/workflow', api_client_order_workflow, name='client_order_workflow'),
     path('api/ops/missions/<int:mission_id>/workflow', api_mission_workflow, name='mission_workflow'),
     path('api/ops/abonnements', api_ops_abonnements, name='ops_abonnements'),
+    path('api/ops/abonnements/<int:abonnement_id>/generer-commande', api_ops_generer_commande_abonnement, name='ops_generer_commande_abonnement'),
     path('api/', include('dossiers.urls')),
 ]
