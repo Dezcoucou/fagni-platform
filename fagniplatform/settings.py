@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'api',
     'parrainage',
     'orchestrateur',
+    'abonnements',
 ]
 
 MIDDLEWARE = [
