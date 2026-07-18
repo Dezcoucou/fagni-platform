@@ -12,7 +12,7 @@ from capacites.services import declarer_capacite
 from configuration.services import definir_parametre
 from notifications.models import Notification
 from workflows.services import creer_workflow
-from .services import capacites_activees, suggerer_partenaires, orchestrer_mission, selectionner_workflow
+from .services import capacites_activees, suggerer_partenaires, orchestrer_mission, selectionner_workflow, etat_execution
 
 
 class CapacitesActiveesTests(TestCase):
@@ -134,3 +134,43 @@ class SelectionWorkflowTests(TestCase):
         workflow = selectionner_workflow("cordonnerie")
         self.assertEqual(workflow.nom, "cordonnerie_test")
         self.assertEqual(workflow.etapes.count(), 3)
+
+
+class EtatExecutionTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963512")
+        self.livreur = ouvrir_dossier("livreur", "Youande", "0799404887")
+        self.commande = creer_commande(
+            self.client_dossier,
+            [{"article": "Chemise", "service": "lavage_exec", "quantite": 1, "prix_unitaire": 500}],
+        )
+        creer_workflow(
+            "pressing_exec_test", "lavage_exec",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "mission_creee"}, {"type_evenement": "cloture"}],
+        )
+
+    def test_etat_none_sans_workflow_trace(self):
+        mission = orchestrer_mission("collecte", self.commande, "service_sans_workflow_exec", acteur_assigne=self.livreur)
+        self.assertIsNone(etat_execution(mission))
+
+    def test_etat_derive_les_etapes_deja_realisees(self):
+        mission = orchestrer_mission("collecte", self.commande, "lavage_exec", acteur_assigne=self.livreur)
+        etat = etat_execution(mission)
+
+        self.assertIsNotNone(etat)
+        self.assertFalse(etat["termine"])
+        self.assertEqual(etat["etape_courante"].type_evenement, "mission_creee")
+        self.assertEqual(etat["prochaine_etape"].type_evenement, "cloture")
+
+    def test_etat_termine_quand_toutes_etapes_realisees(self):
+        from evenements.services import emettre_evenement
+        mission = orchestrer_mission("collecte", self.commande, "lavage_exec", acteur_assigne=self.livreur)
+        emettre_evenement(
+            type_evenement="cloture",
+            dossiers_concernes=[self.client_dossier],
+            acteur_origine=self.client_dossier,
+            objet_source=mission.commande,
+        )
+        etat = etat_execution(mission)
+        self.assertTrue(etat["termine"])
+        self.assertIsNone(etat["prochaine_etape"])

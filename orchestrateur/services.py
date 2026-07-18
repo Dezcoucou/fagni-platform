@@ -16,6 +16,7 @@ from missions.services import proposer_mission
 from evenements.models import Evenement
 from notifications.services import envoyer_notification
 from workflows.models import Workflow
+from workflows.services import obtenir_sequence
 
 
 def capacites_activees():
@@ -94,3 +95,52 @@ def selectionner_workflow(service):
     service suit encore le comportement par defaut, non formalise.
     """
     return Workflow.objects.filter(service_associe=service).first()
+
+
+def etat_execution(mission):
+    """
+    Derive l'etat d'avancement de la mission dans son workflow trace -
+    jamais un nouvel etat stocke, uniquement deduit des Evenement deja
+    emis (BOS chapitre 9, immuabilite) pour la Mission ET sa Commande
+    parente (la sequence d'un Workflow peut melanger les deux origines).
+
+    Retourne None si aucun workflow n'a ete trace sur cette mission
+    (selectionner_workflow n'a rien trouve au moment de l'orchestration).
+    """
+    if mission.workflow is None:
+        return None
+
+    sequence = obtenir_sequence(mission.workflow)
+
+    types_realises = set(
+        Evenement.objects.filter(
+            objet_source_type=ContentType.objects.get_for_model(mission),
+            objet_source_id=mission.id,
+        ).values_list("type_evenement", flat=True)
+    ) | set(
+        Evenement.objects.filter(
+            objet_source_type=ContentType.objects.get_for_model(mission.commande),
+            objet_source_id=mission.commande.id,
+        ).values_list("type_evenement", flat=True)
+    )
+
+    etapes_etat = [
+        {"etape": etape, "realisee": etape.type_evenement in types_realises}
+        for etape in sequence
+    ]
+
+    etape_courante = None
+    prochaine_etape = None
+    for item in etapes_etat:
+        if item["realisee"]:
+            etape_courante = item["etape"]
+        elif prochaine_etape is None:
+            prochaine_etape = item["etape"]
+
+    return {
+        "workflow": mission.workflow,
+        "etapes": etapes_etat,
+        "etape_courante": etape_courante,
+        "prochaine_etape": prochaine_etape,
+        "termine": prochaine_etape is None,
+    }
