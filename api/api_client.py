@@ -60,3 +60,44 @@ def api_client_orders(request):
             {"error": str(err)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@require_role("membre")
+def api_client_order_workflow(request, commande_id):
+    """
+    GET /api/client/orders/<commande_id>/workflow
+    Etat d'avancement du/des workflow(s) pour une commande du client
+    connecte uniquement. Une commande peut avoir plusieurs Missions
+    (FOS-211 section 2.2, statut par ligne) - chacune avec son propre
+    etat de workflow trace.
+    """
+    from missions.models import Mission
+    from orchestrateur.services import etat_execution
+
+    try:
+        dossier = Dossier.objects.get(email=request.email)
+        commande = Commande.objects.get(id=commande_id, dossier_client=dossier)
+    except Dossier.DoesNotExist:
+        return Response({"error": "Dossier non trouve"}, status=status.HTTP_404_NOT_FOUND)
+    except Commande.DoesNotExist:
+        return Response({"error": "Commande introuvable ou non associee a ce client"}, status=status.HTTP_404_NOT_FOUND)
+
+    missions = Mission.objects.filter(commande=commande).select_related("workflow")
+
+    missions_data = []
+    for mission in missions:
+        etat = etat_execution(mission)
+        missions_data.append({
+            "mission_id": mission.id,
+            "type_mission": mission.type_mission,
+            "workflow": etat["workflow"].nom if etat else None,
+            "termine": etat["termine"] if etat else None,
+            "etape_courante": etat["etape_courante"].type_evenement if etat and etat["etape_courante"] else None,
+            "prochaine_etape": etat["prochaine_etape"].type_evenement if etat and etat["prochaine_etape"] else None,
+        })
+
+    return Response({
+        "commande_id": commande.id,
+        "missions": missions_data,
+    }, status=status.HTTP_200_OK)

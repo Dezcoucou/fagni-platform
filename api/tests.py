@@ -132,3 +132,43 @@ class ApiPartnerMissionWorkflowTests(TestCase):
     def test_autre_partenaire_ne_voit_pas_la_mission(self):
         response = self.client.get(self._url(self.mission.id), HTTP_AUTHORIZATION=f"Bearer {self.token_autre}")
         self.assertEqual(response.status_code, 404)
+
+
+class ApiClientOrderWorkflowTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963516")
+        self.client_dossier.email = "rita@fagni.test"
+        self.client_dossier.save(update_fields=["email"])
+
+        self.autre_client = ouvrir_dossier("client", "Wilson", "0708963517")
+        self.autre_client.email = "wilson@fagni.test"
+        self.autre_client.save(update_fields=["email"])
+
+        self.livreur = ouvrir_dossier("livreur", "Youande", "0799404891")
+        self.commande = creer_commande(
+            self.client_dossier,
+            [{"article": "Chemise", "service": "lavage_client_test", "quantite": 1, "prix_unitaire": 500}],
+        )
+        creer_workflow(
+            "pressing_client_test", "lavage_client_test",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "mission_creee"}],
+        )
+        self.mission = orchestrer_mission(
+            "collecte", self.commande, "lavage_client_test", acteur_assigne=self.livreur,
+        )
+        self.token = JWTHandler.encode_access_token(compte_id=5, email="rita@fagni.test", role="membre")
+        self.token_autre = JWTHandler.encode_access_token(compte_id=6, email="wilson@fagni.test", role="membre")
+
+    def _url(self, commande_id):
+        return f"/api/client/orders/{commande_id}/workflow"
+
+    def test_client_voit_sa_propre_commande(self):
+        response = self.client.get(self._url(self.commande.id), HTTP_AUTHORIZATION=f"Bearer {self.token}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data["missions"]), 1)
+        self.assertEqual(data["missions"][0]["workflow"], "pressing_client_test")
+
+    def test_autre_client_ne_voit_pas_la_commande(self):
+        response = self.client.get(self._url(self.commande.id), HTTP_AUTHORIZATION=f"Bearer {self.token_autre}")
+        self.assertEqual(response.status_code, 404)
