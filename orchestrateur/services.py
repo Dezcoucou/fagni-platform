@@ -65,6 +65,11 @@ def orchestrer_mission(type_mission, commande, service, acteur_assigne=None, lig
 
     mission = proposer_mission(type_mission, commande, acteur_assigne, ligne_commande)
 
+    workflow = selectionner_workflow(service)
+    if workflow is not None:
+        mission.workflow = workflow
+        mission.save(update_fields=["workflow"])
+
     content_type = ContentType.objects.get_for_model(mission)
     evenement = Evenement.objects.filter(
         objet_source_type=content_type, objet_source_id=mission.id, type_evenement="mission_creee",

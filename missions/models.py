@@ -5,6 +5,7 @@ Derive du BOS FAGNI 2035 v2.0 (chapitre 3, objet Mission) et de FOS-211 v1.1
 """
 from django.db import models
 from dossiers.models import Dossier
+from workflows.models import Workflow
 from commandes.models import Commande, LigneCommande
 
 
@@ -42,6 +43,11 @@ class Mission(models.Model):
     )
     acteur_assigne = models.ForeignKey(
         Dossier, on_delete=models.PROTECT, related_name="missions_assignees",
+    )
+    workflow = models.ForeignKey(
+        Workflow, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="missions",
+        help_text="Workflow selectionne par orchestrateur.selectionner_workflow() au moment de la creation - trace, jamais suppose.",
     )
     statut = models.CharField(
         "Statut", max_length=20, choices=STATUT_CHOICES, default="proposee",

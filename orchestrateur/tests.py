@@ -84,6 +84,21 @@ class OrchestrationMissionTests(TestCase):
 
         self.assertEqual(nb_apres, nb_avant + 2)  # une pour l'acteur, une pour le client
 
+    def test_orchestration_relie_le_workflow_selectionne(self):
+        """Une fois un workflow configure pour le service, il doit etre trace sur la Mission."""
+        creer_workflow(
+            "pressing_standard_orch", "lavage",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "cloture"}],
+        )
+        mission = orchestrer_mission("collecte", self.commande, "lavage", acteur_assigne=self.livreur)
+        self.assertIsNotNone(mission.workflow)
+        self.assertEqual(mission.workflow.nom, "pressing_standard_orch")
+
+    def test_orchestration_sans_workflow_configure_reste_none(self):
+        """Sans workflow configure pour ce service, la mission ne doit jamais lever d'erreur - juste rester non tracee."""
+        mission = orchestrer_mission("collecte", self.commande, "service_sans_workflow", acteur_assigne=self.livreur)
+        self.assertIsNone(mission.workflow)
+
     def test_orchestration_sans_partenaire_disponible_leve_erreur(self):
         """
         Avec capacites activees et aucun partenaire compatible, doit
