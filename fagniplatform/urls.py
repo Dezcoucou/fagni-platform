@@ -23,6 +23,7 @@ from api.api_driver import api_driver_missions
 from api.api_partner import api_partner_orders
 from api.api_ops import api_ops_dashboard
 from api.api_client import api_client_orders
+from api.api_workflow import api_mission_workflow
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -35,5 +36,6 @@ urlpatterns = [
     path('api/partner/orders', api_partner_orders, name='partner_orders'),
     path('api/ops/dashboard', api_ops_dashboard, name='ops_dashboard'),
     path('api/client/orders', api_client_orders, name='client_orders'),
+    path('api/ops/missions/<int:mission_id>/workflow', api_mission_workflow, name='mission_workflow'),
     path('api/', include('dossiers.urls')),
 ]
