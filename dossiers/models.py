@@ -31,7 +31,7 @@ class Dossier(models.Model):
     )
     nom = models.CharField("Nom", max_length=150)
     telephone = models.CharField("Telephone", max_length=20, blank=True, default="")
-    email = models.EmailField("Email", max_length=255, blank=True, default="", unique=True)
+    email = models.EmailField("Email", max_length=255, blank=True, null=True, unique=True)
 
     statut = models.CharField(
         "Statut", max_length=20, choices=STATUT_CHOICES, default="actif",
