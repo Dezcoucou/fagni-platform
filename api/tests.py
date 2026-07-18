@@ -172,3 +172,69 @@ class ApiClientOrderWorkflowTests(TestCase):
     def test_autre_client_ne_voit_pas_la_commande(self):
         response = self.client.get(self._url(self.commande.id), HTTP_AUTHORIZATION=f"Bearer {self.token_autre}")
         self.assertEqual(response.status_code, 404)
+
+
+class ApiOpsAbonnementsTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963522")
+        self.token_ops = JWTHandler.encode_access_token(compte_id=10, email="ops2@fagni.test", role="administrateur")
+        self.token_membre = JWTHandler.encode_access_token(compte_id=11, email="membre@fagni.test", role="membre")
+
+    def _url(self):
+        return "/api/ops/abonnements"
+
+    def test_creation_par_ops_reussit(self):
+        response = self.client.post(
+            self._url(),
+            data={
+                "telephone_client": "0708963522",
+                "pack": "confort",
+                "taille_sac": "M",
+                "jour_collecte": 0,
+                "jour_livraison": 3,
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token_ops}",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["pack"], "Confort")
+
+    def test_creation_refusee_pour_role_membre(self):
+        response = self.client.post(
+            self._url(),
+            data={"telephone_client": "0708963522", "pack": "confort", "taille_sac": "M", "jour_collecte": 0, "jour_livraison": 3},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token_membre}",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_creation_refusee_si_client_introuvable(self):
+        response = self.client.post(
+            self._url(),
+            data={"telephone_client": "0700000999", "pack": "confort", "taille_sac": "M", "jour_collecte": 0, "jour_livraison": 3},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token_ops}",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_creation_refusee_si_champ_manquant(self):
+        response = self.client.post(
+            self._url(),
+            data={"telephone_client": "0708963522", "pack": "confort"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token_ops}",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_liste_retourne_les_abonnements(self):
+        self.client.post(
+            self._url(),
+            data={"telephone_client": "0708963522", "pack": "confort", "taille_sac": "M", "jour_collecte": 0, "jour_livraison": 3},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token_ops}",
+        )
+        response = self.client.get(self._url(), HTTP_AUTHORIZATION=f"Bearer {self.token_ops}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["actifs"], 1)
