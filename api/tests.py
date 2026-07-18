@@ -60,3 +60,75 @@ class ApiMissionWorkflowTests(TestCase):
         self.assertEqual(data["etape_courante"], "mission_creee")
         self.assertEqual(data["prochaine_etape"], "cloture")
         self.assertEqual(len(data["etapes"]), 3)
+
+
+class ApiDriverMissionWorkflowTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963514")
+        self.livreur = ouvrir_dossier("livreur", "Youande", "0799404889")
+        self.livreur.email = "youande@fagni.test"
+        self.livreur.save(update_fields=["email"])
+        self.autre_livreur = ouvrir_dossier("livreur", "Ange", "0799404890")
+        self.autre_livreur.email = "ange@fagni.test"
+        self.autre_livreur.save(update_fields=["email"])
+        self.commande = creer_commande(
+            self.client_dossier,
+            [{"article": "Chemise", "service": "lavage_driver_test", "quantite": 1, "prix_unitaire": 500}],
+        )
+        creer_workflow(
+            "pressing_driver_test", "lavage_driver_test",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "mission_creee"}],
+        )
+        self.mission = orchestrer_mission(
+            "collecte", self.commande, "lavage_driver_test", acteur_assigne=self.livreur,
+        )
+        self.token = JWTHandler.encode_access_token(compte_id=1, email="youande@fagni.test", role="membre")
+        self.token_autre = JWTHandler.encode_access_token(compte_id=2, email="ange@fagni.test", role="membre")
+
+    def _url(self, mission_id):
+        return f"/api/driver/missions/{mission_id}/workflow"
+
+    def test_livreur_voit_sa_propre_mission(self):
+        response = self.client.get(self._url(self.mission.id), HTTP_AUTHORIZATION=f"Bearer {self.token}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["workflow"], "pressing_driver_test")
+
+    def test_autre_livreur_ne_voit_pas_la_mission(self):
+        response = self.client.get(self._url(self.mission.id), HTTP_AUTHORIZATION=f"Bearer {self.token_autre}")
+        self.assertEqual(response.status_code, 404)
+
+
+class ApiPartnerMissionWorkflowTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963515")
+        self.partenaire = ouvrir_dossier("partenaire", "Atelier Test", "0700000200")
+        self.partenaire.email = "atelier@fagni.test"
+        self.partenaire.save(update_fields=["email"])
+        self.autre_partenaire = ouvrir_dossier("partenaire", "Atelier Autre", "0700000201")
+        self.autre_partenaire.email = "autre@fagni.test"
+        self.autre_partenaire.save(update_fields=["email"])
+        self.commande = creer_commande(
+            self.client_dossier,
+            [{"article": "Chemise", "service": "lavage_partner_test", "quantite": 1, "prix_unitaire": 500}],
+        )
+        creer_workflow(
+            "pressing_partner_test", "lavage_partner_test",
+            [{"type_evenement": "commande_creee"}, {"type_evenement": "mission_creee"}],
+        )
+        self.mission = orchestrer_mission(
+            "collecte", self.commande, "lavage_partner_test", acteur_assigne=self.partenaire,
+        )
+        self.token = JWTHandler.encode_access_token(compte_id=3, email="atelier@fagni.test", role="membre")
+        self.token_autre = JWTHandler.encode_access_token(compte_id=4, email="autre@fagni.test", role="membre")
+
+    def _url(self, mission_id):
+        return f"/api/partner/missions/{mission_id}/workflow"
+
+    def test_partenaire_voit_sa_propre_mission(self):
+        response = self.client.get(self._url(self.mission.id), HTTP_AUTHORIZATION=f"Bearer {self.token}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["workflow"], "pressing_partner_test")
+
+    def test_autre_partenaire_ne_voit_pas_la_mission(self):
+        response = self.client.get(self._url(self.mission.id), HTTP_AUTHORIZATION=f"Bearer {self.token_autre}")
+        self.assertEqual(response.status_code, 404)

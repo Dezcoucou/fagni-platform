@@ -19,8 +19,8 @@ from django.urls import path, include
 from api.api_auth import api_auth_login, api_auth_refresh, api_auth_logout
 from api.api_seed import api_seed_test_comptes
 from api.api_compte import api_compte_me
-from api.api_driver import api_driver_missions
-from api.api_partner import api_partner_orders
+from api.api_driver import api_driver_missions, api_driver_mission_workflow
+from api.api_partner import api_partner_orders, api_partner_mission_workflow
 from api.api_ops import api_ops_dashboard
 from api.api_client import api_client_orders
 from api.api_workflow import api_mission_workflow
@@ -33,7 +33,9 @@ urlpatterns = [
     path('api/admin/seed', api_seed_test_comptes, name='admin_seed'),
     path('api/compte/me', api_compte_me, name='compte_me'),
     path('api/driver/missions', api_driver_missions, name='driver_missions'),
+    path('api/driver/missions/<int:mission_id>/workflow', api_driver_mission_workflow, name='driver_mission_workflow'),
     path('api/partner/orders', api_partner_orders, name='partner_orders'),
+    path('api/partner/missions/<int:mission_id>/workflow', api_partner_mission_workflow, name='partner_mission_workflow'),
     path('api/ops/dashboard', api_ops_dashboard, name='ops_dashboard'),
     path('api/client/orders', api_client_orders, name='client_orders'),
     path('api/ops/missions/<int:mission_id>/workflow', api_mission_workflow, name='mission_workflow'),

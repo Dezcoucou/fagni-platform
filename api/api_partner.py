@@ -8,7 +8,9 @@ from rest_framework import status
 from accounts.jwt_utils import require_role
 from commandes.models import Commande
 from dossiers.models import Dossier
+from missions.models import Mission
 from django.db.models import Q
+from orchestrateur.services import etat_execution
 
 
 @api_view(['GET'])
@@ -63,3 +65,34 @@ def api_partner_orders(request):
             {"error": str(err)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@require_role("membre")
+def api_partner_mission_workflow(request, mission_id):
+    """
+    GET /api/partner/missions/<mission_id>/workflow
+    Etat d'avancement du workflow pour une mission du partenaire connecte
+    uniquement - jamais une mission assignee a un autre acteur.
+    """
+    try:
+        dossier = Dossier.objects.get(email=request.email)
+        mission = Mission.objects.select_related("commande", "workflow").get(
+            id=mission_id, acteur_assigne=dossier,
+        )
+    except Dossier.DoesNotExist:
+        return Response({"error": "Dossier non trouve"}, status=status.HTTP_404_NOT_FOUND)
+    except Mission.DoesNotExist:
+        return Response({"error": "Mission introuvable ou non assignee a ce partenaire"}, status=status.HTTP_404_NOT_FOUND)
+
+    etat = etat_execution(mission)
+    if etat is None:
+        return Response({"mission_id": mission.id, "workflow": None}, status=status.HTTP_200_OK)
+
+    return Response({
+        "mission_id": mission.id,
+        "workflow": etat["workflow"].nom,
+        "termine": etat["termine"],
+        "etape_courante": etat["etape_courante"].type_evenement if etat["etape_courante"] else None,
+        "prochaine_etape": etat["prochaine_etape"].type_evenement if etat["prochaine_etape"] else None,
+    }, status=status.HTTP_200_OK)
