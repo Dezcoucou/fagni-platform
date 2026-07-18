@@ -12,3 +12,5 @@ class OrganisationAdmin(admin.ModelAdmin):
 class CompteAdmin(admin.ModelAdmin):
     list_display = ("dossier", "organisation", "role", "actif")
     list_filter = ("role", "actif")
+    exclude = ("mot_de_passe_hash",)
+    readonly_fields = ("created_at",)

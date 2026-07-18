@@ -25,6 +25,7 @@ from api.api_ops import api_ops_dashboard
 from api.api_client import api_client_orders, api_client_order_workflow
 from api.api_workflow import api_mission_workflow
 from api.api_abonnements import api_ops_abonnements
+from api.api_admin_compte import api_admin_creer_compte_ops
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,6 +33,7 @@ urlpatterns = [
     path('api/auth/refresh', api_auth_refresh, name='auth_refresh'),
     path('api/auth/logout', api_auth_logout, name='auth_logout'),
     path('api/admin/seed', api_seed_test_comptes, name='admin_seed'),
+    path('api/admin/creer-compte-ops', api_admin_creer_compte_ops, name='admin_creer_compte_ops'),
     path('api/compte/me', api_compte_me, name='compte_me'),
     path('api/driver/missions', api_driver_missions, name='driver_missions'),
     path('api/driver/missions/<int:mission_id>/workflow', api_driver_mission_workflow, name='driver_mission_workflow'),
