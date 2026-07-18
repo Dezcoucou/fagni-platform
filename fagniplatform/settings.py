@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'pricing',
     'ajustements',
     'devis',
+    'api',
     'parrainage',
     'orchestrateur',
 ]
