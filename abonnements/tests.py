@@ -7,6 +7,7 @@ from configuration.services import definir_parametre
 from .services import (
     creer_abonnement, generer_commande_depuis_abonnement,
     obtenir_prix_pack, DossierNonUtilisable, PrixAbonnementNonConfigure,
+    CommandeDejaGenereePourCetteEcheance,
 )
 from .models import Abonnement
 
@@ -80,3 +81,38 @@ class GenerationCommandeDepuisAbonnementTests(TestCase):
             objet_source_id=commande.id,
         ).exists()
         self.assertTrue(existe)
+
+
+class AntiDoublonGenerationTests(TestCase):
+    def setUp(self):
+        self.client_dossier = ouvrir_dossier("client", "Rita", "0708963530")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+        self.abonnement = creer_abonnement(
+            self.client_dossier, "confort", "M", jour_collecte=0, jour_livraison=3,
+        )
+
+    def test_deuxieme_generation_immediate_refusee(self):
+        """Une deuxieme generation moins de 6 jours apres la premiere doit etre refusee."""
+        generer_commande_depuis_abonnement(self.abonnement)
+
+        with self.assertRaises(CommandeDejaGenereePourCetteEcheance):
+            generer_commande_depuis_abonnement(self.abonnement)
+
+    def test_commande_generee_tracee_sur_abonnement(self):
+        """La Commande generee doit etre tracee vers son Abonnement source."""
+        commande = generer_commande_depuis_abonnement(self.abonnement)
+        self.assertEqual(commande.abonnement, self.abonnement)
+
+    def test_generation_au_dela_du_delai_autorisee(self):
+        """Passe le delai de 6 jours, une nouvelle generation doit etre possible."""
+        from django.utils import timezone
+        from datetime import timedelta
+        from commandes.models import Commande
+
+        premiere = generer_commande_depuis_abonnement(self.abonnement)
+        Commande.objects.filter(pk=premiere.pk).update(
+            created_at=timezone.now() - timedelta(days=7)
+        )
+
+        deuxieme = generer_commande_depuis_abonnement(self.abonnement)
+        self.assertNotEqual(premiere.id, deuxieme.id)

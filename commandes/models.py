@@ -28,6 +28,11 @@ class Commande(models.Model):
     delai_annonce = models.CharField(
         "Delai annonce", max_length=100, blank=True, default="",
     )
+    abonnement = models.ForeignKey(
+        "abonnements.Abonnement", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="commandes_generees",
+        help_text="Renseigne uniquement si cette Commande a ete generee automatiquement/manuellement depuis un Abonnement - permet la detection anti-doublon par echeance.",
+    )
     created_at = models.DateTimeField("Creee le", auto_now_add=True)
     updated_at = models.DateTimeField("Mise a jour le", auto_now=True)
 

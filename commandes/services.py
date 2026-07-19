@@ -17,12 +17,15 @@ class RevisionPrixInterdite(Exception):
 
 
 @transaction.atomic
-def creer_commande(dossier_client, lignes_data, delai_annonce=""):
+def creer_commande(dossier_client, lignes_data, delai_annonce="", abonnement=None):
     """
     Cree une Commande avec ses lignes, calcule le prix engage comme la
     somme des lignes, et emet l'evenement commande_creee.
 
     lignes_data : liste de dict {article, service, niveau_service, quantite, prix_unitaire}
+    abonnement : optionnel - renseigne uniquement si cette Commande est
+    generee depuis un Abonnement (traçabilite + detection anti-doublon,
+    voir abonnements.services.generer_commande_depuis_abonnement).
     """
     if not lignes_data:
         raise ValueError("Une Commande doit contenir au moins une ligne.")
@@ -35,6 +38,7 @@ def creer_commande(dossier_client, lignes_data, delai_annonce=""):
         dossier_client=dossier_client,
         prix_engage=prix_total,
         delai_annonce=delai_annonce,
+        abonnement=abonnement,
     )
 
     for ligne in lignes_data:
