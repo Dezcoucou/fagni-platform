@@ -142,3 +142,92 @@ class VerifierOffreActiveTests(TestCase):
         definir_parametre("simulateur_offre_pressing_essentiel_active", "false")
         with self.assertRaises(OffreNonDisponible):
             verifier_offre_active("pressing", "essentiel")
+
+
+class ApiEstimerTests(TestCase):
+    def setUp(self):
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+
+    def _payload(self, **overrides):
+        base = {"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"}
+        base.update(overrides)
+        return base
+
+    def test_estimation_reussie(self):
+        response = self.client.post("/api/simulateur/estimer", data=self._payload(), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["disponible"])
+        self.assertEqual(data["prix"], 10900.0)
+        self.assertIn("sim_id", data)
+        self.assertIn("resume_token", data)
+
+    def test_zone_non_desservie_retourne_disponible_false(self):
+        response = self.client.post(
+            "/api/simulateur/estimer",
+            data=self._payload(zone_code="ZONE_INEXISTANTE"),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["disponible"])
+
+    def test_offre_non_active_refusee(self):
+        response = self.client.post(
+            "/api/simulateur/estimer",
+            data=self._payload(pack="essentiel"),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_champ_manquant_refuse(self):
+        response = self.client.post(
+            "/api/simulateur/estimer",
+            data={"service": "pressing"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class ApiReprendreTests(TestCase):
+    def setUp(self):
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+        r = self.client.post(
+            "/api/simulateur/estimer",
+            data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+            content_type="application/json",
+        )
+        self.resume_token = r.json()["resume_token"]
+
+    def test_reprise_non_expiree_retourne_meme_prix(self):
+        response = self.client.get(f"/api/simulateur/reprendre/{self.resume_token}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["prix"], 10900.0)
+        self.assertFalse(data["prix_recalcule"])
+
+    def test_token_inconnu_404(self):
+        response = self.client.get("/api/simulateur/reprendre/token-inexistant")
+        self.assertEqual(response.status_code, 404)
+
+    def test_reprise_expiree_cree_nouvelle_simulation(self):
+        """FOS-213 v1.3 point 4 : l'originale n'est jamais modifiee au-dela de 'expiree'."""
+        from .models import Simulation
+        from django.utils import timezone
+        from datetime import timedelta
+
+        sim = Simulation.objects.get(resume_token=self.resume_token)
+        Simulation.objects.filter(pk=sim.pk).update(created_at=timezone.now() - timedelta(days=8))
+
+        response = self.client.get(f"/api/simulateur/reprendre/{self.resume_token}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["prix_recalcule"])
+        self.assertEqual(data["ancienne_reference"], sim.sim_id)
+        self.assertNotEqual(data["sim_id"], sim.sim_id)
+
+        sim.refresh_from_db()
+        self.assertEqual(sim.statut, "expiree")
