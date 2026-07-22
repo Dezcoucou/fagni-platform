@@ -5,6 +5,7 @@ from django.test import TestCase
 from configuration.services import definir_parametre
 from .etats import transitionner, TransitionInterdite, TRANSITIONS_AUTORISEES, STATUTS_EXPIRABLES
 from .strategies import SimulationEngine, PressingStrategy, OffreNonDisponible
+from .services import generer_sim_id, zone_disponible, verifier_offre_active
 from .models import Simulation
 from abonnements.services import obtenir_prix_pack_avec_version
 
@@ -92,3 +93,52 @@ class PressingStrategyTests(TestCase):
         self.assertEqual(resultat["prix"], 10900.0)
         self.assertEqual(resultat["strategy_version"], "pressing-v1")
         self.assertIsNotNone(resultat["version_parametre"])
+
+
+class GenererSimIdTests(TestCase):
+    def test_format_correct(self):
+        sim_id = generer_sim_id()
+        self.assertRegex(sim_id, r"^FG-\d{4}-\d{5}$")
+
+    def test_unicite_garantie(self):
+        """Deux appels successifs ne doivent jamais produire le meme sim_id une fois utilise."""
+        id1 = generer_sim_id()
+        _creer_simulation_test(sim_id=id1)
+        id2 = generer_sim_id()
+        self.assertNotEqual(id1, id2)
+
+
+class ZoneDisponibleTests(TestCase):
+    def test_zone_non_configuree_retourne_false(self):
+        """Jamais suppose active par defaut - meme principe que capacites_activees()."""
+        self.assertFalse(zone_disponible("ZONE_INCONNUE"))
+
+    def test_zone_configuree_active(self):
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        self.assertTrue(zone_disponible("RIVIERA_3"))
+
+    def test_zone_configuree_inactive(self):
+        definir_parametre("simulateur_zone_RIVIERA_4_active", "false")
+        self.assertFalse(zone_disponible("RIVIERA_4"))
+
+
+class VerifierOffreActiveTests(TestCase):
+    def test_offre_non_configuree_refusee(self):
+        """Jamais suppose actif par defaut."""
+        with self.assertRaises(OffreNonDisponible):
+            verifier_offre_active("pressing", "essentiel")
+
+    def test_offre_configuree_active_ne_leve_rien(self):
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        verifier_offre_active("pressing", "confort")  # ne doit lever aucune exception
+
+    def test_offre_explicitement_inactive_refusee(self):
+        """
+        FOS-213 v1.3 point 2 : meme si l'offre existe techniquement
+        (Essentiel est un pack valide du modele Abonnement), un appel API
+        direct doit etre bloque tant qu'elle n'est pas commercialement
+        activee - defense independante de ce que le frontend expose.
+        """
+        definir_parametre("simulateur_offre_pressing_essentiel_active", "false")
+        with self.assertRaises(OffreNonDisponible):
+            verifier_offre_active("pressing", "essentiel")
