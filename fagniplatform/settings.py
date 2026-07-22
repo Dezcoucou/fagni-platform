@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'parrainage',
     'orchestrateur',
     'abonnements',
+    'simulateur',
 ]
 
 MIDDLEWARE = [
