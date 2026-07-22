@@ -6,7 +6,8 @@ from dossiers.services import ouvrir_dossier
 from configuration.services import definir_parametre
 from .services import (
     creer_abonnement, generer_commande_depuis_abonnement,
-    obtenir_prix_pack, DossierNonUtilisable, PrixAbonnementNonConfigure,
+    obtenir_prix_pack, obtenir_prix_pack_avec_version,
+    DossierNonUtilisable, PrixAbonnementNonConfigure,
     CommandeDejaGenereePourCetteEcheance,
 )
 from .models import Abonnement
@@ -116,3 +117,34 @@ class AntiDoublonGenerationTests(TestCase):
 
         deuxieme = generer_commande_depuis_abonnement(self.abonnement)
         self.assertNotEqual(premiere.id, deuxieme.id)
+
+
+class ObtenirPrixPackAvecVersionTests(TestCase):
+    def test_retourne_prix_et_version_coherents(self):
+        """
+        SE-01 (FOS-213) : obtenir_prix_pack_avec_version() doit retourner
+        exactement le meme prix que obtenir_prix_pack(), plus la
+        VersionParametre exacte utilisee pour ce calcul.
+        """
+        definir_parametre("abonnement_prix_confort_M", "10900")
+
+        prix_simple = obtenir_prix_pack("confort", "M")
+        prix_avec_version, version = obtenir_prix_pack_avec_version("confort", "M")
+
+        self.assertEqual(prix_simple, prix_avec_version)
+        self.assertEqual(prix_avec_version, 10900.0)
+        self.assertEqual(float(version.valeur), 10900.0)
+
+    def test_leve_prix_non_configure_si_absent(self):
+        """Meme comportement d'erreur que obtenir_prix_pack() - jamais suppose."""
+        with self.assertRaises(PrixAbonnementNonConfigure):
+            obtenir_prix_pack_avec_version("essentiel", "S")
+
+    def test_obtenir_prix_pack_existant_inchange(self):
+        """
+        Non-regression explicite (critere de validation SE-01) : la
+        fonction existante, deja utilisee en production, doit continuer
+        a fonctionner exactement comme avant.
+        """
+        definir_parametre("abonnement_prix_confort_S", "7500")
+        self.assertEqual(obtenir_prix_pack("confort", "S"), 7500.0)

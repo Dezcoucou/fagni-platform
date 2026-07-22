@@ -15,7 +15,7 @@ seulement sur decision explicite).
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
-from configuration.services import obtenir_valeur_courante, ParametreInconnu
+from configuration.services import obtenir_valeur_courante, obtenir_version_courante, ParametreInconnu
 from commandes.services import creer_commande
 from commandes.models import Commande
 from .models import Abonnement
@@ -78,6 +78,27 @@ def obtenir_prix_pack(pack, taille_sac):
     try:
         valeur = obtenir_valeur_courante(_cle_prix(pack, taille_sac))
         return float(valeur)
+    except ParametreInconnu:
+        raise PrixAbonnementNonConfigure(
+            f"Aucun prix configure pour le pack '{pack}' / sac '{taille_sac}' "
+            f"(cle attendue: '{_cle_prix(pack, taille_sac)}') - definir via "
+            f"configuration.services.definir_parametre() avant de generer une commande."
+        )
+
+
+def obtenir_prix_pack_avec_version(pack, taille_sac):
+    """
+    Comme obtenir_prix_pack(), mais retourne aussi l'objet VersionParametre
+    exact utilise pour le calcul - necessaire pour Simulation.version_parametre_prix
+    (FOS-213). Fonction separee plutot que de modifier obtenir_prix_pack(),
+    pour ne jamais toucher au comportement deja teste et en production
+    (generer_commande_depuis_abonnement et ses tests du 19 juillet 2026).
+
+    Retourne (prix: float, version: VersionParametre).
+    """
+    try:
+        version = obtenir_version_courante(_cle_prix(pack, taille_sac))
+        return float(version.valeur), version
     except ParametreInconnu:
         raise PrixAbonnementNonConfigure(
             f"Aucun prix configure pour le pack '{pack}' / sac '{taille_sac}' "

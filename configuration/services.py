@@ -36,8 +36,13 @@ def definir_parametre(cle, valeur, description=""):
     return VersionParametre.objects.create(parametre=parametre, valeur=valeur)
 
 
-def obtenir_valeur_courante(cle):
-    """Retourne la valeur active maintenant."""
+def obtenir_version_courante(cle):
+    """
+    Retourne l'objet VersionParametre actif, pas seulement sa valeur -
+    necessaire quand l'appelant doit tracer PRECISEMENT quelle version
+    tarifaire a produit un resultat (ex: Simulation.version_parametre_prix,
+    FOS-213), pas juste connaitre le prix du moment.
+    """
     try:
         parametre = Parametre.objects.get(cle=cle)
     except Parametre.DoesNotExist:
@@ -46,7 +51,12 @@ def obtenir_valeur_courante(cle):
     version = parametre.versions.filter(valide_jusqu_a__isnull=True).first()
     if not version:
         raise ParametreInconnu(f"Le parametre '{cle}' n'a jamais eu de version active.")
-    return version.valeur
+    return version
+
+
+def obtenir_valeur_courante(cle):
+    """Retourne la valeur active maintenant."""
+    return obtenir_version_courante(cle).valeur
 
 
 def obtenir_valeur_a_date(cle, date):
