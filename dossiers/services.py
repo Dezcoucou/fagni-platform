@@ -15,6 +15,36 @@ class DossierDejaExistant(Exception):
     pass
 
 
+def normaliser_telephone_ci(telephone: str) -> str:
+    """
+    Normalise un numero ivoirien vers un format canonique unique - "0748643892",
+    "+225 07 48 64 38 92", "225-0748643892" doivent tous produire la meme
+    valeur normalisee. Necessaire pour toute comparaison d'identite (FOS-213
+    v1.3 point 3 : idempotence de reservation), et pour eviter des doublons
+    de Dossier bases sur un simple format different du meme numero.
+
+    Format canonique retenu : 10 chiffres locaux, sans indicatif ni espace
+    (ex: "0748643892") - coherent avec le format deja stocke sur Dossier.telephone
+    dans le reste du codebase (aucun indicatif +225 observe dans les Dossier existants).
+    """
+    if not telephone:
+        return ""
+
+    chiffres = "".join(c for c in telephone if c.isdigit())
+
+    # Retire l'indicatif pays si present (225XXXXXXXXXX -> XXXXXXXXXX,
+    # en preservant le 0 initial local s'il existe deja apres l'indicatif)
+    if chiffres.startswith("225") and len(chiffres) > 10:
+        chiffres = chiffres[3:]
+
+    # Garantit le 0 initial local (reforme numerotation CI 2021 - meme
+    # convention deja appliquee cote V1, cf. fix du 0e6633e sur l'annuaire OPS)
+    if chiffres and not chiffres.startswith("0"):
+        chiffres = "0" + chiffres
+
+    return chiffres
+
+
 def ouvrir_dossier(type_acteur, nom, telephone=""):
     """
     Ouvre un nouveau Dossier. Refuse explicitement la creation d'un doublon

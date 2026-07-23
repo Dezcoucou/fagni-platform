@@ -1,3 +1,4 @@
+from .services import normaliser_telephone_ci
 """
 Tests unitaires du module dossiers - FAGNI Platform (Lot 1, Sprint 1)
 Chaque test verifie directement une regle du BOS ou de FOS-210/211, jamais
@@ -79,3 +80,22 @@ class StatutDossierTests(TestCase):
         d.refresh_from_db()
         self.assertEqual(d.statut, "exclu")
         self.assertFalse(d.est_utilisable())
+
+
+class NormaliserTelephoneCiTests(TestCase):
+    def test_variantes_produisent_le_meme_resultat(self):
+        variantes = [
+            "0748643892",
+            "+225 07 48 64 38 92",
+            "225-0748643892",
+            "225748643892",
+        ]
+        resultats = {normaliser_telephone_ci(v) for v in variantes}
+        self.assertEqual(len(resultats), 1)
+        self.assertEqual(resultats.pop(), "0748643892")
+
+    def test_telephone_vide_retourne_vide(self):
+        self.assertEqual(normaliser_telephone_ci(""), "")
+
+    def test_telephone_deja_normalise_inchange(self):
+        self.assertEqual(normaliser_telephone_ci("0700000001"), "0700000001")
