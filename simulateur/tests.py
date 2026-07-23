@@ -231,3 +231,81 @@ class ApiReprendreTests(TestCase):
 
         sim.refresh_from_db()
         self.assertEqual(sim.statut, "expiree")
+
+
+class ApiReserverTests(TestCase):
+    def setUp(self):
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+        r = self.client.post(
+            "/api/simulateur/estimer",
+            data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+            content_type="application/json",
+        )
+        self.resume_token = r.json()["resume_token"]
+
+    def _payload(self, **overrides):
+        base = {"resume_token": self.resume_token, "telephone": "0748643892", "nom": "Rita"}
+        base.update(overrides)
+        return base
+
+    def test_premiere_reservation_reussie(self):
+        response = self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["already_reserved"])
+        self.assertEqual(data["status"], "reservee")
+
+    def test_rejeu_identique_retourne_reservation_existante(self):
+        """FOS-213 v1.3 point 3 - vraie idempotence, pas un 409 systematique."""
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        response = self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["already_reserved"])
+
+    def test_rejeu_meme_telephone_format_different_reconnu_identique(self):
+        """L'idempotence doit comparer des donnees NORMALISEES."""
+        self.client.post("/api/simulateur/reserver", data=self._payload(telephone="0748643892"), content_type="application/json")
+        response = self.client.post(
+            "/api/simulateur/reserver",
+            data=self._payload(telephone="+225 07 48 64 38 92"),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["already_reserved"])
+
+    def test_vrai_conflit_telephone_different_refuse(self):
+        self.client.post("/api/simulateur/reserver", data=self._payload(telephone="0748643892"), content_type="application/json")
+        response = self.client.post(
+            "/api/simulateur/reserver",
+            data=self._payload(telephone="0700000009"),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 409)
+
+    def test_resume_token_inconnu_404(self):
+        response = self.client.post(
+            "/api/simulateur/reserver",
+            data=self._payload(resume_token="token-inexistant"),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_reservation_cree_un_seul_abonnement(self):
+        """Verifie qu'un seul Abonnement existe apres la reservation reelle."""
+        from abonnements.models import Abonnement
+
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        self.assertEqual(Abonnement.objects.count(), 1)
+
+    def test_rejeu_ne_cree_pas_de_deuxieme_abonnement(self):
+        """Critere de validation SE-06 : un abonnement maximum, meme sous rejeu."""
+        from abonnements.models import Abonnement
+
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+
+        self.assertEqual(Abonnement.objects.count(), 1)

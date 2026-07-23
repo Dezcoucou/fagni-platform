@@ -8,7 +8,7 @@ from rest_framework import status
 from configuration.services import obtenir_valeur_courante, ParametreInconnu
 from .models import Simulation
 from .strategies import SimulationEngine, OffreNonDisponible
-from .services import generer_sim_id, zone_disponible, verifier_offre_active
+from .services import generer_sim_id, zone_disponible, verifier_offre_active, reserver, ConflitReservation, reserver, ConflitReservation
 from .etats import transitionner, STATUTS_EXPIRABLES
 from abonnements.services import PrixAbonnementNonConfigure
 
@@ -155,3 +155,51 @@ def api_reprendre(request, resume_token):
         "prix": float(nouvelle.prix_calcule),
         "message": "Votre precedente estimation avait expire. Elle a ete actualisee selon les tarifs en vigueur.",
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def api_reserver(request):
+    """
+    POST /api/simulateur/reserver
+    Payload : {"resume_token": "...", "telephone": "...", "nom": "..."}
+    v1.3 : resume_token, jamais sim_id.
+    """
+    resume_token = request.data.get("resume_token", "").strip()
+    telephone = request.data.get("telephone", "").strip()
+    nom = request.data.get("nom", "").strip()
+
+    if not resume_token or not telephone or not nom:
+        return Response({"error": "resume_token, telephone, nom requis"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        resultat = reserver(resume_token, telephone, nom)
+    except Simulation.DoesNotExist:
+        return Response({"error": "Simulation introuvable."}, status=status.HTTP_404_NOT_FOUND)
+    except ConflitReservation as e:
+        return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+    return Response(resultat, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def api_reserver(request):
+    """
+    POST /api/simulateur/reserver
+    Payload : {"resume_token": "...", "telephone": "...", "nom": "..."}
+    v1.3 : resume_token, jamais sim_id.
+    """
+    resume_token = request.data.get("resume_token", "").strip()
+    telephone = request.data.get("telephone", "").strip()
+    nom = request.data.get("nom", "").strip()
+
+    if not resume_token or not telephone or not nom:
+        return Response({"error": "resume_token, telephone, nom requis"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        resultat = reserver(resume_token, telephone, nom)
+    except Simulation.DoesNotExist:
+        return Response({"error": "Simulation introuvable."}, status=status.HTTP_404_NOT_FOUND)
+    except ConflitReservation as e:
+        return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
+
+    return Response(resultat, status=status.HTTP_200_OK)
