@@ -309,3 +309,84 @@ class ApiReserverTests(TestCase):
         self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
 
         self.assertEqual(Abonnement.objects.count(), 1)
+
+
+class ApiEvenementTests(TestCase):
+    def setUp(self):
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+        r = self.client.post(
+            "/api/simulateur/estimer",
+            data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+            content_type="application/json",
+        )
+        self.resume_token = r.json()["resume_token"]
+
+    def test_evenement_type_autorise_enregistre(self):
+        from .models import EvenementSimulation
+
+        response = self.client.post(
+            "/api/simulateur/evenement",
+            data={"resume_token": self.resume_token, "type_evenement": "etape_1", "donnees": {}},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(EvenementSimulation.objects.count(), 1)
+
+    def test_type_evenement_non_autorise_echec_silencieux(self):
+        """FOS-213 v1.3 section 11 : allowlist stricte, jamais un 400 bloquant."""
+        from .models import EvenementSimulation
+
+        response = self.client.post(
+            "/api/simulateur/evenement",
+            data={"resume_token": self.resume_token, "type_evenement": "abandon", "donnees": {}},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(EvenementSimulation.objects.count(), 0)
+
+    def test_donnees_personnelles_filtrees(self):
+        """FOS-213 v1.3 section 11 : telephone/nom/resume_token jamais dans la telemetrie."""
+        from .models import EvenementSimulation
+
+        self.client.post(
+            "/api/simulateur/evenement",
+            data={
+                "resume_token": self.resume_token,
+                "type_evenement": "reservation",
+                "donnees": {"telephone": "0748643892", "nom": "Rita", "etape": "confirmee"},
+            },
+            content_type="application/json",
+        )
+        evt = EvenementSimulation.objects.get()
+        self.assertNotIn("telephone", evt.donnees)
+        self.assertNotIn("nom", evt.donnees)
+        self.assertEqual(evt.donnees.get("etape"), "confirmee")
+
+    def test_token_inconnu_echec_silencieux(self):
+        """Ne revele jamais si un token existe ou non."""
+        response = self.client.post(
+            "/api/simulateur/evenement",
+            data={"resume_token": "token-inexistant", "type_evenement": "etape_1", "donnees": {}},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 204)
+
+
+class ThrottlingTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()  # le cache de throttling DRF n'est pas reinitialise entre tests par defaut
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+
+    def test_estimer_bloque_au_dela_du_seuil(self):
+        payload = {"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"}
+        for _ in range(20):
+            r = self.client.post("/api/simulateur/estimer", data=payload, content_type="application/json")
+            self.assertEqual(r.status_code, 200)
+
+        r = self.client.post("/api/simulateur/estimer", data=payload, content_type="application/json")
+        self.assertEqual(r.status_code, 429)

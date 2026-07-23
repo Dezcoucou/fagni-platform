@@ -2,13 +2,14 @@
 API endpoints du module simulateur - FAGNI Platform (FOS-213 v1.3).
 Tous AllowAny : visiteurs anonymes par construction (avant tout compte).
 """
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 from rest_framework import status
 from configuration.services import obtenir_valeur_courante, ParametreInconnu
 from .models import Simulation
 from .strategies import SimulationEngine, OffreNonDisponible
-from .services import generer_sim_id, zone_disponible, verifier_offre_active, reserver, ConflitReservation, reserver, ConflitReservation
+from .services import generer_sim_id, zone_disponible, verifier_offre_active, reserver, ConflitReservation
+from .throttling import EstimerThrottle, ReserverThrottle
 from .etats import transitionner, STATUTS_EXPIRABLES
 from abonnements.services import PrixAbonnementNonConfigure
 
@@ -28,6 +29,7 @@ def _nb_partenaires(zone_code):
 
 
 @api_view(['POST'])
+@throttle_classes([EstimerThrottle])
 def api_estimer(request):
     """
     POST /api/simulateur/estimer
@@ -158,6 +160,7 @@ def api_reprendre(request, resume_token):
 
 
 @api_view(['POST'])
+@throttle_classes([ReserverThrottle])
 def api_reserver(request):
     """
     POST /api/simulateur/reserver
@@ -203,3 +206,55 @@ def api_reserver(request):
         return Response({"error": str(e)}, status=status.HTTP_409_CONFLICT)
 
     return Response(resultat, status=status.HTTP_200_OK)
+
+
+# Allowlist stricte (FOS-213 v1.3 section 11) : seuls ces types sont
+# acceptes, coherent avec EvenementSimulation.TYPE_EVENEMENT_CHOICES.
+_TYPES_EVENEMENT_AUTORISES = {
+    "arrivee", "etape_1", "etape_2", "resultat_affiche",
+    "whatsapp_ouvert", "reservation", "commande_creee",
+}
+_CLES_DONNEES_INTERDITES = {"telephone", "nom", "resume_token"}
+_TAILLE_MAX_DONNEES = 1024  # octets, JSON serialise
+
+
+@api_view(['POST'])
+def api_evenement(request):
+    """
+    POST /api/simulateur/evenement
+    Payload : {"resume_token": "...", "type_evenement": "...", "donnees": {}}
+    Fire-and-forget cote frontend - ne bloque jamais le parcours si
+    l'appel echoue. Allowlist stricte + exclusion des donnees
+    personnelles de la telemetrie (FOS-213 v1.3 section 11).
+    """
+    import json
+    from .models import Simulation, EvenementSimulation
+
+    resume_token = request.data.get("resume_token", "").strip()
+    type_evenement = request.data.get("type_evenement", "").strip()
+    donnees = request.data.get("donnees", {})
+
+    if type_evenement not in _TYPES_EVENEMENT_AUTORISES:
+        return Response(status=status.HTTP_204_NO_CONTENT)  # echec silencieux, jamais bloquant
+
+    if not isinstance(donnees, dict):
+        donnees = {}
+
+    # Exclusion stricte des donnees personnelles - meme par erreur de dev cote frontend
+    donnees_filtrees = {k: v for k, v in donnees.items() if k not in _CLES_DONNEES_INTERDITES}
+
+    try:
+        if len(json.dumps(donnees_filtrees)) > _TAILLE_MAX_DONNEES:
+            donnees_filtrees = {}
+    except (TypeError, ValueError):
+        donnees_filtrees = {}
+
+    try:
+        simulation = Simulation.objects.get(resume_token=resume_token)
+    except Simulation.DoesNotExist:
+        return Response(status=status.HTTP_204_NO_CONTENT)  # jamais reveler si un token existe
+
+    EvenementSimulation.objects.create(
+        simulation=simulation, type_evenement=type_evenement, donnees=donnees_filtrees,
+    )
+    return Response(status=status.HTTP_201_CREATED)

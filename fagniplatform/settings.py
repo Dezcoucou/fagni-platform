@@ -73,6 +73,13 @@ INSTALLED_APPS = [
     'simulateur',
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_RATES': {
+        'simulateur_estimer': '20/hour',
+        'simulateur_reserver': '10/hour',
+    },
+}
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
