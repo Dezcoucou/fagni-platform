@@ -127,8 +127,34 @@ def reserver(resume_token, telephone, nom):
 
     transitionner(simulation, "reservee")
 
+    # Notification OPS via V1 (FCM deja fonctionnel) - fire-and-forget,
+    # jamais bloquant. Exception consciente au principe "pas de pont
+    # automatique V1/V2" (FOS-213 section 0), justifiee car non-critique :
+    # un echec ici n'affecte jamais la reservation deja actee.
+    _notifier_ops_v1(simulation, telephone_norm, nom_norm)
+
     return {
         "already_reserved": False,
         "sim_id": simulation.sim_id,
         "status": "reservee",
     }
+
+
+def _notifier_ops_v1(simulation, telephone, nom):
+    import os
+    import requests
+
+    try:
+        requests.post(
+            "https://dezcoucou80.pythonanywhere.com/api/simulateur/notify/",
+            params={"key": os.getenv("SIMULATEUR_NOTIFY_KEY", "")},
+            json={
+                "sim_id": simulation.sim_id,
+                "nom": nom,
+                "telephone": telephone,
+                "prix": float(simulation.prix_calcule),
+            },
+            timeout=5,
+        )
+    except Exception:
+        pass  # fire-and-forget : jamais d'impact sur la reservation si V1 est indisponible/lent

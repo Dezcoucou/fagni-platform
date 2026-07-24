@@ -2,6 +2,7 @@
 Tests unitaires du module simulateur - FAGNI Platform (FOS-213 v1.3).
 """
 from django.test import TestCase
+from unittest.mock import patch
 from configuration.services import definir_parametre
 from .etats import transitionner, TransitionInterdite, TRANSITIONS_AUTORISEES, STATUTS_EXPIRABLES
 from .strategies import SimulationEngine, PressingStrategy, OffreNonDisponible
@@ -233,6 +234,7 @@ class ApiReprendreTests(TestCase):
         self.assertEqual(sim.statut, "expiree")
 
 
+@patch('simulateur.services._notifier_ops_v1')
 class ApiReserverTests(TestCase):
     def setUp(self):
         definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
@@ -250,14 +252,24 @@ class ApiReserverTests(TestCase):
         base.update(overrides)
         return base
 
-    def test_premiere_reservation_reussie(self):
+    def test_premiere_reservation_reussie(self, mock_notify):
         response = self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertFalse(data["already_reserved"])
         self.assertEqual(data["status"], "reservee")
 
-    def test_rejeu_identique_retourne_reservation_existante(self):
+    def test_notification_ops_declenchee_a_la_premiere_reservation(self, mock_notify):
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        mock_notify.assert_called_once()
+
+    def test_notification_non_redeclenchee_sur_rejeu(self, mock_notify):
+        """Un rejeu identique ne doit jamais renvoyer une deuxieme alerte OPS."""
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
+        mock_notify.assert_called_once()
+
+    def test_rejeu_identique_retourne_reservation_existante(self, mock_notify):
         """FOS-213 v1.3 point 3 - vraie idempotence, pas un 409 systematique."""
         self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
         response = self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
@@ -265,7 +277,7 @@ class ApiReserverTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["already_reserved"])
 
-    def test_rejeu_meme_telephone_format_different_reconnu_identique(self):
+    def test_rejeu_meme_telephone_format_different_reconnu_identique(self, mock_notify):
         """L'idempotence doit comparer des donnees NORMALISEES."""
         self.client.post("/api/simulateur/reserver", data=self._payload(telephone="0748643892"), content_type="application/json")
         response = self.client.post(
@@ -276,7 +288,7 @@ class ApiReserverTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["already_reserved"])
 
-    def test_vrai_conflit_telephone_different_refuse(self):
+    def test_vrai_conflit_telephone_different_refuse(self, mock_notify):
         self.client.post("/api/simulateur/reserver", data=self._payload(telephone="0748643892"), content_type="application/json")
         response = self.client.post(
             "/api/simulateur/reserver",
@@ -285,7 +297,7 @@ class ApiReserverTests(TestCase):
         )
         self.assertEqual(response.status_code, 409)
 
-    def test_resume_token_inconnu_404(self):
+    def test_resume_token_inconnu_404(self, mock_notify):
         response = self.client.post(
             "/api/simulateur/reserver",
             data=self._payload(resume_token="token-inexistant"),
@@ -293,14 +305,14 @@ class ApiReserverTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_reservation_cree_un_seul_abonnement(self):
+    def test_reservation_cree_un_seul_abonnement(self, mock_notify):
         """Verifie qu'un seul Abonnement existe apres la reservation reelle."""
         from abonnements.models import Abonnement
 
         self.client.post("/api/simulateur/reserver", data=self._payload(), content_type="application/json")
         self.assertEqual(Abonnement.objects.count(), 1)
 
-    def test_rejeu_ne_cree_pas_de_deuxieme_abonnement(self):
+    def test_rejeu_ne_cree_pas_de_deuxieme_abonnement(self, mock_notify):
         """Critere de validation SE-06 : un abonnement maximum, meme sous rejeu."""
         from abonnements.models import Abonnement
 
