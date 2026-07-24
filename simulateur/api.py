@@ -258,3 +258,40 @@ def api_evenement(request):
         simulation=simulation, type_evenement=type_evenement, donnees=donnees_filtrees,
     )
     return Response(status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+def api_mon_abonnement(request):
+    """
+    GET /api/simulateur/mon-abonnement?telephone=...
+    Retourne le statut de l'abonnement le plus recent pour ce numero -
+    permet au client (app V1) de voir son engagement, invisible jusqu'ici
+    (aucun ecran cote V1 ne montrait cette info, decouvert le 19 juillet).
+    """
+    from dossiers.services import normaliser_telephone_ci
+    from dossiers.models import Dossier
+    from abonnements.models import Abonnement
+
+    telephone = request.GET.get('telephone', '').strip()
+    if not telephone:
+        return Response({"error": "telephone requis"}, status=status.HTTP_400_BAD_REQUEST)
+
+    telephone_norm = normaliser_telephone_ci(telephone)
+
+    try:
+        dossier = Dossier.objects.get(type_acteur="client", telephone=telephone_norm)
+    except Dossier.DoesNotExist:
+        return Response({"abonnement": None}, status=status.HTTP_200_OK)
+
+    abonnement = Abonnement.objects.filter(dossier_client=dossier).order_by("-created_at").first()
+    if not abonnement:
+        return Response({"abonnement": None}, status=status.HTTP_200_OK)
+
+    return Response({
+        "abonnement": {
+            "pack": abonnement.get_pack_display(),
+            "taille_sac": abonnement.get_taille_sac_display(),
+            "statut": abonnement.get_statut_display(),
+            "cree_le": abonnement.created_at.strftime("%d/%m/%Y"),
+        }
+    }, status=status.HTTP_200_OK)

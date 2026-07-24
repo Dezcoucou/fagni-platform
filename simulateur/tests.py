@@ -237,6 +237,8 @@ class ApiReprendreTests(TestCase):
 @patch('simulateur.services._notifier_ops_v1')
 class ApiReserverTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
         definir_parametre("simulateur_offre_pressing_confort_active", "true")
         definir_parametre("abonnement_prix_confort_M", "10900")
@@ -402,3 +404,123 @@ class ThrottlingTests(TestCase):
 
         r = self.client.post("/api/simulateur/estimer", data=payload, content_type="application/json")
         self.assertEqual(r.status_code, 429)
+
+
+class ApiMonAbonnementTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+
+    def test_telephone_sans_dossier_retourne_none(self):
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=0700000077")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["abonnement"])
+
+    def test_dossier_sans_abonnement_retourne_none(self):
+        from dossiers.services import ouvrir_dossier
+        ouvrir_dossier("client", "Test", "0700000078")
+
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=0700000078")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["abonnement"])
+
+    def test_abonnement_existant_retourne_le_statut(self):
+        with patch('simulateur.services._notifier_ops_v1'):
+            r = self.client.post(
+                "/api/simulateur/estimer",
+                data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+                content_type="application/json",
+            )
+            resume_token = r.json()["resume_token"]
+            self.client.post(
+                "/api/simulateur/reserver",
+                data={"resume_token": resume_token, "telephone": "0700000079", "nom": "Rita"},
+                content_type="application/json",
+            )
+
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=0700000079")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["abonnement"]
+        self.assertEqual(data["pack"], "Confort")
+        self.assertEqual(data["statut"], "Actif")
+
+    def test_telephone_format_different_reconnu(self):
+        """Doit fonctionner peu importe le format saisi (normalisation)."""
+        with patch('simulateur.services._notifier_ops_v1'):
+            r = self.client.post(
+                "/api/simulateur/estimer",
+                data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+                content_type="application/json",
+            )
+            resume_token = r.json()["resume_token"]
+            self.client.post(
+                "/api/simulateur/reserver",
+                data={"resume_token": resume_token, "telephone": "0700000080", "nom": "Rita"},
+                content_type="application/json",
+            )
+
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=+225 07 00 00 00 80")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.json()["abonnement"])
+
+
+class ApiMonAbonnementTests(TestCase):
+    def setUp(self):
+        definir_parametre("simulateur_zone_RIVIERA_3_active", "true")
+        definir_parametre("simulateur_offre_pressing_confort_active", "true")
+        definir_parametre("abonnement_prix_confort_M", "10900")
+
+    def test_telephone_sans_dossier_retourne_none(self):
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=0700000077")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["abonnement"])
+
+    def test_dossier_sans_abonnement_retourne_none(self):
+        from dossiers.services import ouvrir_dossier
+        ouvrir_dossier("client", "Test", "0700000078")
+
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=0700000078")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["abonnement"])
+
+    def test_abonnement_existant_retourne_le_statut(self):
+        with patch('simulateur.services._notifier_ops_v1'):
+            r = self.client.post(
+                "/api/simulateur/estimer",
+                data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+                content_type="application/json",
+            )
+            resume_token = r.json()["resume_token"]
+            self.client.post(
+                "/api/simulateur/reserver",
+                data={"resume_token": resume_token, "telephone": "0700000079", "nom": "Rita"},
+                content_type="application/json",
+            )
+
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=0700000079")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["abonnement"]
+        self.assertEqual(data["pack"], "Confort")
+        self.assertEqual(data["statut"], "Actif")
+
+    def test_telephone_format_different_reconnu(self):
+        """Doit fonctionner peu importe le format saisi (normalisation)."""
+        with patch('simulateur.services._notifier_ops_v1'):
+            r = self.client.post(
+                "/api/simulateur/estimer",
+                data={"service": "pressing", "zone_code": "RIVIERA_3", "taille_sac": "M", "pack": "confort"},
+                content_type="application/json",
+            )
+            resume_token = r.json()["resume_token"]
+            self.client.post(
+                "/api/simulateur/reserver",
+                data={"resume_token": resume_token, "telephone": "0700000080", "nom": "Rita"},
+                content_type="application/json",
+            )
+
+        response = self.client.get("/api/simulateur/mon-abonnement?telephone=+225 07 00 00 00 80")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.json()["abonnement"])

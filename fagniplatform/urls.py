@@ -27,7 +27,7 @@ from api.api_workflow import api_mission_workflow
 from api.api_abonnements import api_ops_abonnements, api_ops_generer_commande_abonnement
 from api.api_admin_compte import api_admin_creer_compte_ops
 from api.api_admin_superuser import api_admin_creer_superuser
-from simulateur.api import api_estimer, api_reprendre, api_reserver
+from simulateur.api import api_estimer, api_reprendre, api_reserver, api_evenement, api_mon_abonnement
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -51,5 +51,7 @@ urlpatterns = [
     path('api/simulateur/estimer', api_estimer, name='simulateur_estimer'),
     path('api/simulateur/reprendre/<str:resume_token>', api_reprendre, name='simulateur_reprendre'),
     path('api/simulateur/reserver', api_reserver, name='simulateur_reserver'),
+    path('api/simulateur/evenement', api_evenement, name='simulateur_evenement'),
+    path('api/simulateur/mon-abonnement', api_mon_abonnement, name='simulateur_mon_abonnement'),
     path('api/', include('dossiers.urls')),
 ]
